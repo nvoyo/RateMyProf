@@ -1,4 +1,5 @@
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
 import { status } from 'elysia'
 import { db } from '../../db/index.ts'
 import {
@@ -29,7 +30,7 @@ async function replaceTags(
   if (uniqueTags.length) {
     await tx
       .insert(reviewTags)
-      .values(uniqueTags.map((tag) => ({ reviewId, tag })))
+      .values(uniqueTags.map((tag) => ({ id: randomUUID(), reviewId, tag })))
   }
 }
 
@@ -69,22 +70,27 @@ export abstract class ReviewService {
     }
 
     const review = await db.transaction(async (tx) => {
-      const [created] = await tx
-        .insert(reviews)
-        .values({
-          professorId,
-          authorId,
-          courseCode: body.courseCode ?? null,
-          qualityRating: body.qualityRating,
-          difficultyRating: body.difficultyRating,
-          wouldTakeAgain: body.wouldTakeAgain,
-          grade: body.grade ?? null,
-          comment: body.comment,
-          status: 'pending',
-        })
-        .returning()
+      const reviewId = randomUUID()
+      await tx.insert(reviews).values({
+        id: reviewId,
+        professorId,
+        authorId,
+        courseCode: body.courseCode ?? null,
+        qualityRating: body.qualityRating,
+        difficultyRating: body.difficultyRating,
+        wouldTakeAgain: body.wouldTakeAgain,
+        grade: body.grade ?? null,
+        comment: body.comment,
+        status: 'pending',
+      })
 
-      await replaceTags(tx, created!.id, body.tags)
+      await replaceTags(tx, reviewId, body.tags)
+
+      const [created] = await tx
+        .select()
+        .from(reviews)
+        .where(eq(reviews.id, reviewId))
+        .limit(1)
       return created!
     })
 
@@ -115,7 +121,7 @@ export abstract class ReviewService {
     }
 
     const updated = await db.transaction(async (tx) => {
-      const [row] = await tx
+      await tx
         .update(reviews)
         .set({
           ...(body.courseCode !== undefined
@@ -138,9 +144,14 @@ export abstract class ReviewService {
           moderatedAt: null,
         })
         .where(eq(reviews.id, reviewId))
-        .returning()
 
       await replaceTags(tx, reviewId, body.tags)
+
+      const [row] = await tx
+        .select()
+        .from(reviews)
+        .where(eq(reviews.id, reviewId))
+        .limit(1)
       return row!
     })
 
@@ -256,9 +267,7 @@ export abstract class ReviewService {
       ? await db
           .select({ reviewId: reviewTags.reviewId, tag: reviewTags.tag })
           .from(reviewTags)
-          .where(
-            sql`${reviewTags.reviewId} in ${sql.raw(`(${ids.map((id) => `'${id}'`).join(',')})`)}`,
-          )
+          .where(inArray(reviewTags.reviewId, ids))
       : []
 
     const tagMap = new Map<string, string[]>()
@@ -353,7 +362,7 @@ export abstract class ReviewService {
       .limit(1)
     if (!existing) return status(404, 'Review not found')
 
-    const [updated] = await db
+    await db
       .update(reviews)
       .set({
         status: body.status,
@@ -361,7 +370,12 @@ export abstract class ReviewService {
         moderatedAt: new Date(),
       })
       .where(eq(reviews.id, id))
-      .returning({ id: reviews.id, status: reviews.status })
+
+    const [updated] = await db
+      .select({ id: reviews.id, status: reviews.status })
+      .from(reviews)
+      .where(eq(reviews.id, id))
+      .limit(1)
 
     return updated!
   }
@@ -414,9 +428,8 @@ export abstract class ReviewService {
 
     await db
       .insert(votes)
-      .values({ reviewId, userId, value: body.value })
-      .onConflictDoUpdate({
-        target: [votes.reviewId, votes.userId],
+      .values({ id: randomUUID(), reviewId, userId, value: body.value })
+      .onDuplicateKeyUpdate({
         set: { value: body.value },
       })
 

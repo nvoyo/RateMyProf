@@ -1,4 +1,5 @@
-import { and, avg, count, eq, ilike, or, sql } from 'drizzle-orm'
+import { and, avg, count, eq, like, or, sql } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
 import { status } from 'elysia'
 import { db } from '../../db/index.ts'
 import { professors, reviews, schools } from '../../db/schema.ts'
@@ -64,14 +65,14 @@ export abstract class ProfessorService {
     const conditions = []
     if (query.schoolId) conditions.push(eq(professors.schoolId, query.schoolId))
     if (query.department)
-      conditions.push(ilike(professors.department, `%${query.department}%`))
+      conditions.push(like(professors.department, `%${query.department}%`))
     if (query.q) {
       conditions.push(
         or(
-          ilike(professors.firstName, `%${query.q}%`),
-          ilike(professors.lastName, `%${query.q}%`),
-          ilike(
-            sql`${professors.firstName} || ' ' || ${professors.lastName}`,
+          like(professors.firstName, `%${query.q}%`),
+          like(professors.lastName, `%${query.q}%`),
+          like(
+            sql`concat(${professors.firstName}, ' ', ${professors.lastName})`,
             `%${query.q}%`,
           ),
         ),
@@ -135,16 +136,21 @@ export abstract class ProfessorService {
       .limit(1)
     if (!school) return status(400, 'School not found')
 
+    const id = randomUUID()
+    await db.insert(professors).values({
+      id,
+      schoolId: body.schoolId,
+      firstName: body.firstName,
+      lastName: body.lastName,
+      department: body.department,
+      title: body.title ?? null,
+    })
+
     const [created] = await db
-      .insert(professors)
-      .values({
-        schoolId: body.schoolId,
-        firstName: body.firstName,
-        lastName: body.lastName,
-        department: body.department,
-        title: body.title ?? null,
-      })
-      .returning()
+      .select()
+      .from(professors)
+      .where(eq(professors.id, id))
+      .limit(1)
 
     return created!
   }
@@ -157,7 +163,7 @@ export abstract class ProfessorService {
       .limit(1)
     if (!existing) return status(404, 'Professor not found')
 
-    const [updated] = await db
+    await db
       .update(professors)
       .set({
         ...(body.firstName ? { firstName: body.firstName } : {}),
@@ -166,17 +172,25 @@ export abstract class ProfessorService {
         ...(body.title !== undefined ? { title: body.title } : {}),
       })
       .where(eq(professors.id, id))
-      .returning()
+
+    const [updated] = await db
+      .select()
+      .from(professors)
+      .where(eq(professors.id, id))
+      .limit(1)
 
     return updated!
   }
 
   static async remove(id: string) {
-    const [deleted] = await db
-      .delete(professors)
+    const [existing] = await db
+      .select({ id: professors.id })
+      .from(professors)
       .where(eq(professors.id, id))
-      .returning({ id: professors.id })
-    if (!deleted) return status(404, 'Professor not found')
+      .limit(1)
+    if (!existing) return status(404, 'Professor not found')
+
+    await db.delete(professors).where(eq(professors.id, id))
     return { success: true }
   }
 }

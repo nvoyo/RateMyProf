@@ -1,4 +1,5 @@
 import { asc, eq } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
 import { status } from 'elysia'
 import { db } from '../../db/index.ts'
 import { schools } from '../../db/schema.ts'
@@ -37,10 +38,16 @@ export abstract class SchoolService {
       slug = `${base}-${counter}`
     }
 
-    const [created] = await db
+    const id = randomUUID()
+    await db
       .insert(schools)
-      .values({ name: body.name, slug, domain: body.domain ?? null })
-      .returning()
+      .values({ id, name: body.name, slug, domain: body.domain ?? null })
+
+    const [created] = await db
+      .select()
+      .from(schools)
+      .where(eq(schools.id, id))
+      .limit(1)
 
     return created!
   }

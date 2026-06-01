@@ -1,4 +1,5 @@
 import { and, desc, eq, gt } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
 import { status } from 'elysia'
 import { db } from '../../db/index.ts'
 import { invites, users } from '../../db/schema.ts'
@@ -42,21 +43,26 @@ export abstract class UserService {
     const passwordHash = await hashPassword(body.password)
 
     const user = await db.transaction(async (tx) => {
-      const [created] = await tx
-        .insert(users)
-        .values({
-          email,
-          passwordHash,
-          displayName: body.displayName,
-          role: 'student',
-          schoolId: invite.schoolId,
-        })
-        .returning()
+      const userId = randomUUID()
+      await tx.insert(users).values({
+        id: userId,
+        email,
+        passwordHash,
+        displayName: body.displayName,
+        role: 'student',
+        schoolId: invite.schoolId,
+      })
 
       await tx
         .update(invites)
         .set({ status: 'accepted' })
         .where(eq(invites.id, invite.id))
+
+      const [created] = await tx
+        .select()
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
 
       return created!
     })
@@ -85,14 +91,19 @@ export abstract class UserService {
       }
     }
 
-    const [updated] = await db
+    await db
       .update(users)
       .set({
         ...(body.status ? { status: body.status } : {}),
         ...(body.role ? { role: body.role } : {}),
       })
       .where(eq(users.id, id))
-      .returning()
+
+    const [updated] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, id))
+      .limit(1)
 
     return UserService.toPublic(updated!)
   }

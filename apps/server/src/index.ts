@@ -28,16 +28,6 @@ const app = new Elysia()
     if (code === 'NOT_FOUND') {
       return status(404, { error: 'Not found' })
     }
-    // Postgres "invalid text representation" (e.g. a non-UUID string passed
-    // where a uuid column is expected) — treat as a not-found rather than 500.
-    if (
-      error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      (error as { code?: string }).code === '22P02'
-    ) {
-      return status(404, { error: 'Not found' })
-    }
     console.error('[server] Unhandled error:', error)
     return status(500, { error: 'Internal server error' })
   })

@@ -1,4 +1,5 @@
 import { and, desc, eq, gt } from 'drizzle-orm'
+import { randomUUID } from 'node:crypto'
 import { status } from 'elysia'
 import { db } from '../../db/index.ts'
 import { invites, schools, users } from '../../db/schema.ts'
@@ -40,16 +41,21 @@ export abstract class InviteService {
       Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000,
     )
 
+    const inviteId = randomUUID()
+    await db.insert(invites).values({
+      id: inviteId,
+      email,
+      schoolId: body.schoolId,
+      token,
+      invitedBy,
+      expiresAt,
+    })
+
     const [created] = await db
-      .insert(invites)
-      .values({
-        email,
-        schoolId: body.schoolId,
-        token,
-        invitedBy,
-        expiresAt,
-      })
-      .returning()
+      .select()
+      .from(invites)
+      .where(eq(invites.id, inviteId))
+      .limit(1)
 
     const delivery = await mail.sendInvite({
       to: email,
@@ -84,12 +90,17 @@ export abstract class InviteService {
   }
 
   static async revoke(id: string) {
-    const [updated] = await db
+    const [existing] = await db
+      .select({ id: invites.id })
+      .from(invites)
+      .where(eq(invites.id, id))
+      .limit(1)
+    if (!existing) return status(404, 'Invite not found')
+
+    await db
       .update(invites)
       .set({ status: 'revoked' })
       .where(eq(invites.id, id))
-      .returning({ id: invites.id })
-    if (!updated) return status(404, 'Invite not found')
     return { success: true }
   }
 

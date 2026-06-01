@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { eq } from 'drizzle-orm'
 import { status } from 'elysia'
 import { db } from '../../db/index.ts'
@@ -31,21 +32,30 @@ export abstract class SetupService {
 
     const result = await db.transaction(async (tx) => {
       const baseSlug = slugify(body.schoolName) || 'school'
-      const [school] = await tx
+      const schoolId = randomUUID()
+      await tx
         .insert(schools)
-        .values({ name: body.schoolName, slug: baseSlug })
-        .returning()
+        .values({ id: schoolId, name: body.schoolName, slug: baseSlug })
+      const [school] = await tx
+        .select()
+        .from(schools)
+        .where(eq(schools.id, schoolId))
+        .limit(1)
 
+      const adminId = randomUUID()
+      await tx.insert(users).values({
+        id: adminId,
+        email: body.email.toLowerCase(),
+        passwordHash,
+        displayName: body.displayName,
+        role: 'admin',
+        schoolId: school!.id,
+      })
       const [admin] = await tx
-        .insert(users)
-        .values({
-          email: body.email.toLowerCase(),
-          passwordHash,
-          displayName: body.displayName,
-          role: 'admin',
-          schoolId: school!.id,
-        })
-        .returning()
+        .select()
+        .from(users)
+        .where(eq(users.id, adminId))
+        .limit(1)
 
       return { school: school!, admin: admin! }
     })

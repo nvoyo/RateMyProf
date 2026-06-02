@@ -3,6 +3,7 @@ import { authPlugin } from '../../plugins/auth.ts'
 import { ReviewService } from '../reviews/service.ts'
 import { createReviewBody } from '../reviews/model.ts'
 import {
+  bulkCreateProfessorsBody,
   createProfessorBody,
   listProfessorsQuery,
   updateProfessorBody,
@@ -14,6 +15,7 @@ import { ProfessorService } from './service.ts'
  *   GET    /professors                 -> list/search (public)
  *   GET    /professors/:id             -> details with aggregate scores (public)
  *   POST   /professors                 -> create (admin)
+ *   POST   /professors/bulk            -> bulk import from list/text (admin)
  *   PATCH  /professors/:id             -> update (admin)
  *   DELETE /professors/:id             -> delete (admin)
  *   GET    /professors/:id/reviews     -> approved reviews for a professor (public)
@@ -31,6 +33,10 @@ export const professorsModule = new Elysia({ prefix: '/professors' })
   .post('/', ({ body }) => ProfessorService.create(body), {
     requireAdmin: true,
     body: createProfessorBody,
+  })
+  .post('/bulk', ({ body }) => ProfessorService.bulkCreate(body), {
+    requireAdmin: true,
+    body: bulkCreateProfessorsBody,
   })
   .patch('/:id', ({ params, body }) => ProfessorService.update(params.id, body), {
     requireAdmin: true,

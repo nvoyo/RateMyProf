@@ -157,6 +157,20 @@ export async function adminCreateProfessor(body: {
   return unwrap(await api.api.professors.post(body))
 }
 
+export async function adminBulkCreateProfessors(body: {
+  schoolId: string
+  professors?: {
+    firstName: string
+    lastName: string
+    department: string
+    title?: string
+  }[]
+  text?: string
+  defaultDepartment?: string
+}) {
+  return unwrap(await api.api.professors.bulk.post(body))
+}
+
 export async function adminUpdateProfessor(
   id: string,
   body: {

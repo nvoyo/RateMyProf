@@ -29,7 +29,11 @@ export const sessionCookieOptions = {
  */
 export const jwtPayloadSchema = t.Object({
   sub: t.String(), // user id
-  role: t.Union([t.Literal('student'), t.Literal('admin')]),
+  role: t.Union([
+    t.Literal('student'),
+    t.Literal('admin'),
+    t.Literal('owner'),
+  ]),
   schoolId: t.Optional(t.Union([t.String(), t.Null()])),
 })
 
@@ -83,7 +87,7 @@ export const authPlugin = new Elysia({ name: 'auth' })
       }
     },
     /**
-     * Requires an authenticated user with the admin role.
+     * Requires an authenticated user with the admin or owner role.
      */
     requireAdmin(_enabled: boolean) {
       return {
@@ -107,7 +111,7 @@ export const authPlugin = new Elysia({ name: 'auth' })
           if (!user || user.status === 'disabled') {
             return status(401, 'Account not found or disabled')
           }
-          if (user.role !== 'admin') {
+          if (user.role !== 'admin' && user.role !== 'owner') {
             return status(403, 'Admin access required')
           }
 

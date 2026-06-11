@@ -37,7 +37,9 @@ export const users = mysqlTable('users', {
   email: varchar('email', { length: 320 }).notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   displayName: text('display_name').notNull(),
-  role: mysqlEnum('role', ['student', 'admin']).notNull().default('student'),
+  role: mysqlEnum('role', ['student', 'admin', 'owner'])
+    .notNull()
+    .default('student'),
   status: mysqlEnum('status', ['active', 'disabled']).notNull().default('active'),
   schoolId: fk('school_id').references(() => schools.id, {
     onDelete: 'set null',

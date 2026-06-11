@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { status } from 'elysia'
 import { db } from '../../db/index.ts'
 import { schools, users } from '../../db/schema.ts'
@@ -8,20 +8,21 @@ import type { SetupBody } from './model.ts'
 
 export abstract class SetupService {
   /**
-   * The system is considered initialized once at least one admin exists.
+   * The system is considered initialized once at least one admin/owner exists.
    */
   static async isInitialized(): Promise<boolean> {
     const [admin] = await db
       .select({ id: users.id })
       .from(users)
-      .where(eq(users.role, 'admin'))
+      .where(inArray(users.role, ['admin', 'owner']))
       .limit(1)
     return Boolean(admin)
   }
 
   /**
-   * Creates the first school + admin account.
-   * Locked once any admin already exists.
+   * Creates the first school + owner account.
+   * The owner is a super-admin that other admins cannot modify.
+   * Locked once any admin/owner already exists.
    */
   static async initialize(body: SetupBody) {
     if (await SetupService.isInitialized()) {
@@ -48,7 +49,7 @@ export abstract class SetupService {
         email: body.email.toLowerCase(),
         passwordHash,
         displayName: body.displayName,
-        role: 'admin',
+        role: 'owner',
         schoolId: school!.id,
       })
       const [admin] = await tx

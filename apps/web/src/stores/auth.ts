@@ -4,7 +4,7 @@ export interface CurrentUser {
   id: string
   email: string
   displayName: string
-  role: 'student' | 'admin'
+  role: 'student' | 'admin' | 'owner'
   status: 'active' | 'disabled'
   schoolId: string | null
   createdAt: string | Date
@@ -22,7 +22,8 @@ export const useAuthStore = defineStore('auth', {
   }),
   getters: {
     isAuthenticated: (state) => Boolean(state.user),
-    isAdmin: (state) => state.user?.role === 'admin',
+    isAdmin: (state) =>
+      state.user?.role === 'admin' || state.user?.role === 'owner',
   },
   actions: {
     setUser(user: CurrentUser | null) {

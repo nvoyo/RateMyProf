@@ -10,7 +10,7 @@ import { SetupService } from './service.ts'
  *
  * RESTful: the "setup" resource represents one-time system initialization.
  *   GET  /setup   -> current initialization status
- *   POST /setup   -> create the first admin + school + auto-login (locked afterwards)
+ *   POST /setup   -> create the first owner + school + auto-login (locked afterwards)
  */
 export const setupModule = new Elysia({ prefix: '/setup' })
   .use(
@@ -31,7 +31,7 @@ export const setupModule = new Elysia({ prefix: '/setup' })
 
       const token = await jwt.sign({
         sub: result.admin.id,
-        role: 'admin' as const,
+        role: 'owner' as const,
         schoolId: result.school.id,
       })
 

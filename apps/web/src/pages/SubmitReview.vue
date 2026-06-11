@@ -1,7 +1,24 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getProfessor, getMyReview, submitReview, updateReview } from '../services/api'
+
+// Fixed tag vocabulary. Display labels are human-readable; the stored value is
+// the lowercased label (the server lowercases tags anyway). Max 10 per review.
+const AVAILABLE_TAGS = [
+  'Inspiring', 'Caring', 'Funny', 'Respected', 'Clear lectures',
+  'Knowledgeable', 'Approachable', 'Engaging', 'Patient', 'Fair grader',
+  'Tough grader', 'Lots of homework', 'Heavy reading', 'Lots of group projects',
+  'Participation matters', 'Attendance mandatory', 'Pop quizzes',
+  'Test heavy', 'Project heavy', 'Essay heavy',
+  'Lecture heavy', 'Skip class? You won\'t pass', 'Get ready to read',
+  'Beware of pop quizzes', 'Graded by few things', 'Extra credit',
+  'So many papers', 'Group projects', 'Gives good feedback',
+  'Accessible outside class', 'Amazing lectures', 'Tough but fair',
+  'Strict', 'Boring', 'Disorganized', 'Hilarious',
+]
+const MAX_TAGS = 10
+const tagValue = (label: string) => label.toLowerCase()
 
 const route = useRoute()
 const router = useRouter()
@@ -10,16 +27,36 @@ const professorName = ref('')
 const editing = ref(false)
 const existingReviewId = ref<string | null>(null)
 const loading = ref(true)
-const form = reactive({ courseCode: '', qualityRating: 0, difficultyRating: 0, wouldTakeAgain: false, grade: '', comment: '', tagsInput: '' })
+const form = reactive({ courseCode: '', qualityRating: 0, difficultyRating: 0, wouldTakeAgain: false, grade: '', comment: '', tags: [] as string[] })
 const error = ref('')
 const success = ref('')
 const submitting = ref(false)
+
+// Labels to render: the fixed vocabulary, plus any already-selected tag that
+// isn't in it (e.g. legacy free-text tags from an older review) so the user
+// can still see and remove it.
+const tagOptions = computed(() => {
+  const known = new Set(AVAILABLE_TAGS.map(tagValue))
+  const extras = form.tags.filter((t) => !known.has(t))
+  return [...AVAILABLE_TAGS, ...extras]
+})
+
+function isSelected(label: string) {
+  return form.tags.includes(tagValue(label))
+}
+
+function toggleTag(label: string) {
+  const value = tagValue(label)
+  const i = form.tags.indexOf(value)
+  if (i >= 0) { form.tags.splice(i, 1) }
+  else if (form.tags.length < MAX_TAGS) { form.tags.push(value) }
+}
 
 onMounted(async () => {
   try { const prof = await getProfessor(id); professorName.value = `${prof.firstName} ${prof.lastName}` } catch {}
   try {
     const mine = await getMyReview(id)
-    if (mine) { editing.value = true; existingReviewId.value = mine.id; form.courseCode = mine.courseCode ?? ''; form.qualityRating = mine.qualityRating; form.difficultyRating = mine.difficultyRating; form.wouldTakeAgain = mine.wouldTakeAgain; form.grade = mine.grade ?? ''; form.comment = mine.comment; form.tagsInput = mine.tags.join(', ') }
+    if (mine) { editing.value = true; existingReviewId.value = mine.id; form.courseCode = mine.courseCode ?? ''; form.qualityRating = mine.qualityRating; form.difficultyRating = mine.difficultyRating; form.wouldTakeAgain = mine.wouldTakeAgain; form.grade = mine.grade ?? ''; form.comment = mine.comment; form.tags = [...mine.tags] }
   } catch {} finally { loading.value = false }
 })
 
@@ -29,8 +66,7 @@ async function submit() {
   if (!form.comment.trim()) { error.value = 'Please add a comment.'; return }
   submitting.value = true
   try {
-    const tags = form.tagsInput.split(',').map(t => t.trim()).filter(Boolean)
-    const payload = { ...(form.courseCode ? { courseCode: form.courseCode } : {}), qualityRating: form.qualityRating, difficultyRating: form.difficultyRating, wouldTakeAgain: form.wouldTakeAgain, ...(form.grade ? { grade: form.grade } : {}), comment: form.comment, tags }
+    const payload = { ...(form.courseCode ? { courseCode: form.courseCode } : {}), qualityRating: form.qualityRating, difficultyRating: form.difficultyRating, wouldTakeAgain: form.wouldTakeAgain, ...(form.grade ? { grade: form.grade } : {}), comment: form.comment, tags: form.tags }
     if (editing.value && existingReviewId.value) { await updateReview(existingReviewId.value, payload); success.value = 'Review updated! Returns to pending for re-approval.' }
     else { await submitReview(id, payload); success.value = 'Review submitted! Pending moderation.' }
     setTimeout(() => router.push(`/professors/${id}`), 1800)
@@ -84,8 +120,18 @@ async function submit() {
       </div>
 
       <div class="mb-4">
-        <label class="block text-[13px] font-semibold text-text mb-1.5">Tags</label>
-        <input v-model="form.tagsInput" class="w-full py-2.5 px-3.5 border border-border rounded-[10px] text-sm bg-white transition-all focus:outline-none focus:border-accent focus:ring-[3px] focus:ring-accent/10 placeholder:text-text-tertiary" placeholder="inspiring, tough-grader, lots-of-homework" />
+        <label class="block text-[13px] font-semibold text-text mb-1.5">Tags <span class="text-text-tertiary font-normal">· pick up to {{ MAX_TAGS }} ({{ form.tags.length }}/{{ MAX_TAGS }})</span></label>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="label in tagOptions"
+            :key="label"
+            type="button"
+            class="px-3 py-1.5 rounded-full text-[13px] font-medium border cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            :class="isSelected(label) ? 'bg-accent text-white border-accent' : 'bg-white text-text-secondary border-border hover:bg-accent-soft hover:border-border-hover'"
+            :disabled="!isSelected(label) && form.tags.length >= MAX_TAGS"
+            @click="toggleTag(label)"
+          >{{ label }}</button>
+        </div>
       </div>
 
       <p v-if="error" class="text-danger text-[13px] font-medium mb-2">{{ error }}</p>

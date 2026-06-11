@@ -90,14 +90,23 @@ export abstract class PasswordResetService {
 
   /**
    * Admin: force-change a user's password.
+   * The owner's password can only be changed by the owner themselves.
    */
-  static async adminChangePassword(userId: string, password: string) {
+  static async adminChangePassword(
+    userId: string,
+    password: string,
+    actingUserId: string,
+  ) {
     const [existing] = await db
-      .select({ id: users.id })
+      .select({ id: users.id, role: users.role })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1)
     if (!existing) return status(404, 'User not found')
+
+    if (existing.role === 'owner' && existing.id !== actingUserId) {
+      return status(403, "The owner account's password cannot be changed by other admins")
+    }
 
     const passwordHash = await hashPassword(password)
     await db

@@ -84,6 +84,12 @@ export abstract class UserService {
 
     if (!target) return status(404, 'User not found')
 
+    // Guard: the owner account can never be modified through this endpoint,
+    // so regular admins cannot demote, disable, or otherwise touch it.
+    if (target.role === 'owner') {
+      return status(403, 'The owner account cannot be modified')
+    }
+
     // Guard: an admin cannot disable or demote themselves and lock the system.
     if (id === actingUserId) {
       if (body.status === 'disabled' || body.role === 'student') {

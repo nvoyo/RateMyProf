@@ -17,7 +17,7 @@ export const publicUser = t.Object({
   id: t.String(),
   email: t.String(),
   displayName: t.String(),
-  role: t.Union([t.Literal('student'), t.Literal('admin')]),
+  role: t.Union([t.Literal('student'), t.Literal('admin'), t.Literal('owner')]),
   status: t.Union([t.Literal('active'), t.Literal('disabled')]),
   schoolId: t.Union([t.String(), t.Null()]),
   createdAt: t.Date(),

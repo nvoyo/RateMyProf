@@ -50,7 +50,12 @@ export const usersModule = new Elysia({ prefix: '/users' })
   )
   .patch(
     '/:id/password',
-    ({ params, body }) => PasswordResetService.adminChangePassword(params.id, body.password),
+    ({ params, body, currentUser }) =>
+      PasswordResetService.adminChangePassword(
+        params.id,
+        body.password,
+        currentUser.id,
+      ),
     {
       requireAdmin: true,
       params: t.Object({ id: t.String({ format: 'uuid' }) }),

@@ -8,6 +8,13 @@
       "when": 1780361037738,
       "tag": "0000_curly_guardian",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1781136000000,
+      "tag": "0001_owner_role",
+      "breakpoints": true
     }
   ]
 }
